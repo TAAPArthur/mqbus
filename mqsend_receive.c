@@ -36,7 +36,7 @@ int main(int argc, char* argv[]) {
     int baseFlag = -1;
     if(strstr(argv[0], "mqsend"))
         baseFlag = O_WRONLY;
-    else if(strstr(argv[0], "mqrec"))
+    else if(strstr(argv[0], "mqreceive"))
         baseFlag = O_RDONLY;
     char name[255] = {"/"};
     strcat(name, argv[1]);

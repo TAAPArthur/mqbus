@@ -113,9 +113,9 @@ int main(int argc, const char* argv[]) {
     }
 
     int baseFlag = 0;
-    if(strstr(argv[0], "mqmultisend"))
+    if(strstr(argv[0], "mqbus-send"))
         baseFlag = O_RDONLY;
-    else if(strstr(argv[0], "mqmultirec"))
+    else if(strstr(argv[0], "mqbus-receive"))
         baseFlag = O_WRONLY;
 
     const char baseDir[]="/tmp/multiplexor";

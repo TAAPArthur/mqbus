@@ -1,19 +1,21 @@
+BINS = mqbus mqbus-send mqbus-receive mqsend mqreceive
+all: $(BINS)
 
-all: mqmultisend mqmultirec mqsend mqrec
+install: $(BINS)
+	install -t $(DESTDIR)/usr/bin $@
 
-
-mqmultisend: multiplexor.o
+mqbus-send: mqbus.o
 	$(CC) -o $@ $^ -lrt
 
-mqmultirec: mqmultisend
+mqbus-receive: mqbus-send
 	ln -s $^ $@
 
 mqsend: mqsend_receive.o
 	$(CC) -o $@ $^ -lrt
 
-mqrec: mqsend
+mqreceive: mqsend
 	ln -s $^ $@
 
 clean:
-	rm -f mqmultisend mqmultirec mqsend mqrec *.o
+	rm -f mqbus mqbus-send mqbus-receive mqsend mqreceive *.o
 
