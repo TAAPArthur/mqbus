@@ -1,6 +1,7 @@
+#include <errno.h>
+#include <fcntl.h>
 #include <mqueue.h>
 #include <poll.h>
-#include <errno.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>

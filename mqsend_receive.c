@@ -1,9 +1,11 @@
-#include "mqhelper.h"
+#include <fcntl.h>
 #include <mqueue.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+#include "mqhelper.h"
 struct mq_attr attr = {
     .mq_maxmsg = MAX_MESSAGES,
     .mq_msgsize = MAX_MSG_SIZE
