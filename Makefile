@@ -1,17 +1,19 @@
 BINS = mqbus mqbus-send mqbus-receive mqsend mqreceive
 all: $(BINS)
 
+LDFLAGS=-lrt
+
 install: $(BINS)
-	install -t $(DESTDIR)/usr/bin $@
+	install -Dt $(DESTDIR)/usr/bin $^
 
 mqbus-send: mqbus.o
-	$(CC) -o $@ $^ -lrt
+	$(CC) -o $@ $^ $(LDFLAGS)
 
 mqbus-receive: mqbus-send
 	ln -s $^ $@
 
 mqsend: mqsend_receive.o
-	$(CC) -o $@ $^ -lrt
+	$(CC) -o $@ $^ $(LDFLAGS)
 
 mqreceive: mqsend
 	ln -s $^ $@
