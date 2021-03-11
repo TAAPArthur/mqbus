@@ -6,13 +6,15 @@
 #include <unistd.h>
 
 #include "mqhelper.h"
-struct mq_attr attr = {
+
+#define MAX_MSG_SIZE 255
+const struct mq_attr attr = {
     .mq_maxmsg = MAX_MESSAGES,
     .mq_msgsize = MAX_MSG_SIZE
 };
 
-char buffer[MAX_MSG_SIZE];
 void receive(mqd_t mqd) {
+    char buffer[MAX_MSG_SIZE];
     while(1){
         int ret = mq_receive(mqd,(char*) &buffer, MAX_MSG_SIZE, NULL);
         if(ret == -1) {
@@ -24,34 +26,35 @@ void receive(mqd_t mqd) {
     }
 }
 
-void send(mqd_t mqd) {
-    int ret = read(STDIN_FILENO, buffer, sizeof(buffer));
-    if (ret == -1)
-        die("failed read");
-    buffer[sizeof(buffer)-1] = 0;
-    if(mq_send(mqd, buffer, strlen(buffer) + 1, 1) == -1)
+void send(mqd_t mqd, int priority, const char* message) {
+    char buffer[MAX_MSG_SIZE];
+    if(!message) {
+        int ret = read(STDIN_FILENO, buffer, sizeof(buffer));
+        if (ret == -1)
+            die("failed read");
+        buffer[sizeof(buffer)-1] = 0;
+        message = buffer;
+    }
+    if(mq_send(mqd, message, MIN(MAX_MSG_SIZE, strlen(message)), priority) == -1)
         die("mq_send");
 }
 
-int main(int argc, char* argv[]) {
-    if(argc == 1)
-        exit(1);
-    int baseFlag = -1;
-    if(strstr(argv[0], "mqsend"))
-        baseFlag = O_WRONLY;
-    else if(strstr(argv[0], "mqreceive"))
-        baseFlag = O_RDONLY;
-    char name[255] = {"/"};
-    strcat(name, argv[1]);
-    mqd_t mqd = mq_open(name, baseFlag|O_CLOEXEC|O_CREAT, 0722, &attr);
-    switch(baseFlag) {
-        case O_WRONLY:
-            send(mqd);
-            break;
-        case O_RDONLY:
-            receive(mqd);
-            break;
-        default:
-            exit(2);
-    }
+void usage(void) {
+    printf("mq: (-s|-r) [-p PRIORITY] name [MESSAGE]\n");
+    printf("mqsend: [-p PRIORITY] name [MESSAGE]\n");
+    printf("mqreceive: [-p PRIORITY] name\n");
+}
+
+int main(int argc, const char* argv[]) {
+    int receiveFlag;
+    int priority = 0;
+    char name[255] = {0};
+    const char* message = parseArgs(argv, &receiveFlag, &priority, name);
+    mqd_t mqd = mq_open(name, (!receiveFlag?O_WRONLY:O_RDONLY)|O_CLOEXEC|O_CREAT, 0722, &attr);
+    if(mqd == -1)
+        die("mqd");
+    if(!receiveFlag)
+        send(mqd, priority, message);
+    else
+        receive(mqd);
 }

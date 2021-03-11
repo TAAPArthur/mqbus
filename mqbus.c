@@ -1,3 +1,4 @@
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <mqueue.h>
@@ -13,54 +14,97 @@
 
 #define MAX_LISTENERS 1024
 #define READ_SIZE 1024
+#define MAX_PIPE_NAME_LEN 32
 
-struct mq_attr attr = {
-    .mq_maxmsg = 10,
-    .mq_msgsize = READ_SIZE
+const struct mq_attr attr = {
+    .mq_maxmsg = MAX_MESSAGES,
+    .mq_msgsize = MAX_PIPE_NAME_LEN
 };
-static char buffer[READ_SIZE];
 int listeners[MAX_LISTENERS];
+char pathNames[MAX_LISTENERS][MAX_PIPE_NAME_LEN];
 int numListeners = 0;
-void removeListener(int i) {
+
+void removeListener(int i, int baseFD) {
+    unlinkat(baseFD, pathNames[i], 0);
+    close(listeners[i]);
     for(;i<numListeners; i++) {
         listeners[i]=listeners[i+1];
+        strcpy(pathNames[i+1], pathNames[i]);
     }
     numListeners--;
 }
-int baseFD;
-void forwardInput(int fd) {
-    int ret = read(fd, buffer, sizeof(buffer));
+
+void forwardMessage(int baseFD, const char* message, int size) {
     for(int i=numListeners-1;i>=0 ;i--){
-        if(write(listeners[i], buffer, ret) == -1) {
+        if(write(listeners[i], message, size) == -1) {
             perror("write");
-            removeListener(i);
+            removeListener(i, baseFD);
         }
     }
 }
-void addListener(int mqd) {
-    int ret = mq_receive(mqd,(char*) &buffer, sizeof(buffer), NULL);
+
+void forwardInput(int fd, int baseFD) {
+    char buffer[READ_SIZE];
+    int ret = read(fd, buffer, sizeof(buffer));
+    if(ret == -1)
+        die("read");
+    forwardMessage(baseFD, buffer, ret);
+}
+
+void addListenerByName(int baseFD, char* pipeName) {
+    int fd = openat(baseFD, pipeName, O_WRONLY|O_NONBLOCK);
+    if(fd == -1) {
+        perror("Failed to open pipe");
+        unlinkat(baseFD, pipeName, 0);
+        return;
+    }
+    for(int i=numListeners-1; i>=0;i--)
+        if(strcmp(pipeName, pathNames[i])==0)
+            removeListener(i, baseFD);
+    strncpy(pathNames[numListeners], pipeName, MAX_PIPE_NAME_LEN);
+    listeners[numListeners++] = fd;
+}
+void addListener(int mqd, int baseFD) {
+    if(numListeners == MAX_LISTENERS) {
+        dprintf(STDERR_FILENO, "Too many listeners\n");
+        return;
+    }
+
+    char pipeName[MAX_PIPE_NAME_LEN];
+    int ret = mq_receive(mqd, pipeName, sizeof(pipeName), NULL);
     if(ret==-1) {
         die("Failed to receive msg");
     }
-    int fd = openat(baseFD, buffer, O_WRONLY|O_NONBLOCK);
-    if(fd == -1) {
-        perror("Failed to open pipe");
-        return;
-    }
-    unlinkat(baseFD, buffer, 0);
-    listeners[numListeners++] = fd;
+    pipeName[MAX_PIPE_NAME_LEN-1] = 0;
+    addListenerByName(baseFD, pipeName);
 }
-void multiSend(int mqd) {
+
+void loadExistingReaders(int baseFD) {
+    DIR* dir = fdopendir(dup(baseFD));
+    if(!dir)
+        die("fdopendir");
+    struct dirent *d;
+    while ((d = readdir(dir))) {
+        if (strcmp(d->d_name, ".") == 0 ||
+            strcmp(d->d_name, "..") == 0)
+            continue;
+        addListenerByName(baseFD, d->d_name);
+    }
+    closedir(dir);
+}
+void multiSend(int mqd, int baseFD) {
     struct sigaction sa;
     sa.sa_handler = SIG_IGN;
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = SA_RESETHAND | SA_NODEFER;
     sigaction(SIGPIPE, &sa, NULL);
+
     struct pollfd fds[2] = {
         {.fd=STDIN_FILENO, .events=POLLIN},
         {.fd=mqd, .events=POLLIN}
     };
-    void(*func[])(int) = {
+
+    void(*func[])(int, int) = {
         forwardInput,
         addListener
     };
@@ -70,87 +114,96 @@ void multiSend(int mqd) {
         }
         for(int i=0;i<2;i++) {
             if(fds[i].revents & POLLIN)
-                func[i](fds[i].fd);
+                func[i](fds[i].fd, baseFD);
+            else if(fds[i].revents & (POLLERR|POLLHUP))
+                exit(2);
         }
     }
 }
 
-void registerForMultiRead(int mqd) {
-    if(mkfifoat(baseFD, buffer, 0600)==-1) {
-        die("mkfifoat");
+void registerForMultiRead(int mqd, int baseFD) {
+    char pidName[MAX_PIPE_NAME_LEN];
+    sprintf(pidName, "%d", getpid());
+    if(mkfifoat(baseFD, pidName, 0600)==-1) {
+        if(errno != EEXIST) {
+            die("mkfifoat");
+        }
     }
 
-    int fd = openat(baseFD, buffer, O_RDONLY|O_NONBLOCK);
+    int fd = openat(baseFD, pidName, O_RDWR|O_NONBLOCK);
     if(fd == -1){
         die("failed to open pipe");
     }
-    if(mq_send(mqd, buffer, strlen(buffer) + 1, 1) == -1){
+    if(mq_send(mqd, pidName, strlen(pidName) + 1, 1) == -1){
         die("mq_send");
     }
 
     struct pollfd fds[1] =  {{.fd=fd, .events=POLLIN}};
+
+    char buffer[READ_SIZE];
     while(1) {
         int ret = poll(fds, 1, -1);
+        if(ret == -1)
+            die("poll");
         if(fds[0].revents & POLLIN) {
             ret = read(fd, buffer, sizeof(buffer));
             if(ret == -1) {
-                perror("read");
-                registerForMultiRead(mqd);
-                return;
+                die("read");
             }
             if(write(STDOUT_FILENO, buffer, ret) == -1){
                 die("write");
             }
         } else {
-            close(fd);
-            registerForMultiRead(mqd);
-            return;
+            exit(2);
         }
     }
 }
-int main(int argc, const char* argv[]) {
-    if(argc ==  1) {
-        exit(1);
-    }
 
-    int baseFlag = 0;
-    if(strstr(argv[0], "mqbus-send"))
-        baseFlag = O_RDONLY;
-    else if(strstr(argv[0], "mqbus-receive"))
-        baseFlag = O_WRONLY;
+void usage(void) {
+    printf("mqbus: (-s|-r) name [MESSAGE]\n");
+    printf("mqbus-send: name [MESSAGE]\n");
+    printf("mqbus-receive: name\n");
+}
 
-    const char baseDir[]="/tmp/multiplexor";
+static int createAndOpenDir(const char* relativePath) {
+    char* baseDir=getenv("MQBUS_DIR");
+    if(!baseDir)
+        baseDir="/tmp/mqbus";
     mkdir(baseDir, 0777);
     int dir = open(baseDir, O_RDONLY);
     if(dir==-1){
         die("open (dir)");
     }
-    if(mkdirat(dir, argv[1], 0744)==-1){
+    if(mkdirat(dir, relativePath, 0744)==-1){
         if(errno != EEXIST) {
             die("mkdirat");
         }
     }
 
-    baseFD = openat(dir, argv[1], O_RDONLY, 0744);
-    if(baseFD  == -1) {
+    int baseFD = openat(dir, relativePath, O_RDONLY);
+    if( baseFD  == -1) {
         die("openat");
     }
+    close(dir);
+    return baseFD;
+}
 
-    char name[255] = {"/"};
-    strcat(name, argv[1]);
-    mqd_t mqd = mq_open(name, baseFlag|O_CREAT, 0722,  &attr);
+int main(int argc, const char* argv[]) {
+    int receiveFlag;
+    char name[255] = {0};
+    const char* message = parseArgs(argv, &receiveFlag, NULL, name);
+    int baseFD = createAndOpenDir(name + 1);
+    mqd_t mqd = mq_open(name, (receiveFlag?O_WRONLY:O_RDONLY)|O_CREAT, 0722, &attr);
     if(mqd == -1) {
         die("mq_open");
     }
-
-    switch(baseFlag ) {
-        case O_WRONLY:
-            registerForMultiRead(mqd);
-            break;
-        case O_RDONLY:
-            multiSend(mqd);
-            break;
-        default:
-            exit(2);
+    if(receiveFlag)
+        registerForMultiRead(mqd, baseFD);
+    else {
+        loadExistingReaders(baseFD);
+        if(message)
+            forwardMessage(mqd, message, strlen(message));
+        else
+            multiSend(mqd, baseFD);
     }
 }

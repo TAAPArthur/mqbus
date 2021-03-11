@@ -1,23 +1,30 @@
-BINS = mqbus mqbus-send mqbus-receive mqsend mqreceive
-all: $(BINS)
+BINS = mqbus mqbus-send mqbus-receive mq mqsend mqreceive
 
 LDFLAGS=-lrt
+
+all: $(BINS)
 
 install: $(BINS)
 	install -Dt $(DESTDIR)/usr/bin $^
 
-mqbus-send: mqbus.o
+mqbus: mqbus.o
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-mqbus-receive: mqbus-send
+mqbus-send: mqbus
 	ln -s $^ $@
 
-mqsend: mqsend_receive.o
+mqbus-receive: mqbus
+	ln -s $^ $@
+
+mq: mqsend_receive.o
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-mqreceive: mqsend
+mqsend: mq
+	ln -s $^ $@
+
+mqreceive: mq
 	ln -s $^ $@
 
 clean:
-	rm -f mqbus mqbus-send mqbus-receive mqsend mqreceive *.o
+	rm -f $(BINS) *.o
 
