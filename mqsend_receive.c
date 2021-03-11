@@ -25,11 +25,12 @@ void receive(mqd_t mqd) {
 }
 
 void send(mqd_t mqd) {
-    while(fgets(buffer, sizeof(buffer), stdin)) {
-        if(mq_send(mqd, buffer, strlen(buffer) + 1, 1) == -1){
-            die("mq_send");
-        }
-    }
+    int ret = read(STDIN_FILENO, buffer, sizeof(buffer));
+    if (ret == -1)
+        die("failed read");
+    buffer[sizeof(buffer)-1] = 0;
+    if(mq_send(mqd, buffer, strlen(buffer) + 1, 1) == -1)
+        die("mq_send");
 }
 
 int main(int argc, char* argv[]) {
