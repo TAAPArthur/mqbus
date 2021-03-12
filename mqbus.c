@@ -27,15 +27,15 @@ int numListeners = 0;
 void removeListener(int i, int baseFD) {
     unlinkat(baseFD, pathNames[i], 0);
     close(listeners[i]);
-    for(;i<numListeners; i++) {
-        listeners[i]=listeners[i+1];
-        strcpy(pathNames[i+1], pathNames[i]);
+    for(; i < numListeners; i++) {
+        listeners[i] = listeners[i + 1];
+        strcpy(pathNames[i + 1], pathNames[i]);
     }
     numListeners--;
 }
 
 void forwardMessage(int baseFD, const char* message, int size) {
-    for(int i=numListeners-1;i>=0 ;i--){
+    for(int i = numListeners - 1; i >= 0 ; i--) {
         if(write(listeners[i], message, size) == -1) {
             perror("write");
             removeListener(i, baseFD);
@@ -58,8 +58,8 @@ void addListenerByName(int baseFD, char* pipeName) {
         unlinkat(baseFD, pipeName, 0);
         return;
     }
-    for(int i=numListeners-1; i>=0;i--)
-        if(strcmp(pipeName, pathNames[i])==0)
+    for(int i = numListeners - 1; i >= 0; i--)
+        if(strcmp(pipeName, pathNames[i]) == 0)
             removeListener(i, baseFD);
     strncpy(pathNames[numListeners], pipeName, MAX_PIPE_NAME_LEN);
     listeners[numListeners++] = fd;
@@ -72,10 +72,10 @@ void addListener(int mqd, int baseFD) {
 
     char pipeName[MAX_PIPE_NAME_LEN];
     int ret = mq_receive(mqd, pipeName, sizeof(pipeName), NULL);
-    if(ret==-1) {
+    if(ret == -1) {
         die("Failed to receive msg");
     }
-    pipeName[MAX_PIPE_NAME_LEN-1] = 0;
+    pipeName[MAX_PIPE_NAME_LEN - 1] = 0;
     addListenerByName(baseFD, pipeName);
 }
 
@@ -100,8 +100,8 @@ void multiSend(int mqd, int baseFD) {
     sigaction(SIGPIPE, &sa, NULL);
 
     struct pollfd fds[] = {
-        {.fd=STDIN_FILENO, .events=POLLIN},
-        {.fd=mqd, .events=POLLIN}
+        {.fd = STDIN_FILENO, .events = POLLIN},
+        {.fd = mqd, .events = POLLIN}
     };
 
     int numFDs = sizeof(fds)/sizeof(fds[0]);
@@ -142,7 +142,7 @@ void registerForMultiRead(int mqd, int baseFD) {
         die("mq_send");
     }
 
-    struct pollfd fds[1] =  {{.fd=fd, .events=POLLIN}};
+    struct pollfd fds[1] =  {{.fd = fd, .events = POLLIN} };
 
     char buffer[READ_SIZE];
     while(1) {
@@ -175,17 +175,17 @@ static int createAndOpenDir(const char* relativePath) {
         baseDir="/tmp/mqbus";
     mkdir(baseDir, 0777);
     int dir = open(baseDir, O_RDONLY);
-    if(dir==-1){
+    if(dir == -1) {
         die("open (dir)");
     }
-    if(mkdirat(dir, relativePath, 0744)==-1){
+    if(mkdirat(dir, relativePath, 0744) == -1) {
         if(errno != EEXIST) {
             die("mkdirat");
         }
     }
 
     int baseFD = openat(dir, relativePath, O_RDONLY);
-    if( baseFD  == -1) {
+    if(baseFD == -1) {
         die("openat");
     }
     close(dir);
@@ -197,7 +197,7 @@ int main(int argc, const char* argv[]) {
     char name[255] = {0};
     const char* message = parseArgs(argv, &receiveFlag, NULL, name);
     int baseFD = createAndOpenDir(name + 1);
-    mqd_t mqd = mq_open(name, (receiveFlag?O_WRONLY:O_RDONLY)|O_CREAT, 0722, &attr);
+    mqd_t mqd = mq_open(name, (receiveFlag ? O_WRONLY : O_RDONLY) | O_CREAT, 0722, &attr);
     if(mqd == -1) {
         die("mq_open");
     }
