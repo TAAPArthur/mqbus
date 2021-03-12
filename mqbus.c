@@ -99,22 +99,26 @@ void multiSend(int mqd, int baseFD) {
     sa.sa_flags = SA_RESETHAND | SA_NODEFER;
     sigaction(SIGPIPE, &sa, NULL);
 
-    struct pollfd fds[2] = {
+    struct pollfd fds[] = {
         {.fd=STDIN_FILENO, .events=POLLIN},
         {.fd=mqd, .events=POLLIN}
     };
+
+    int numFDs = sizeof(fds)/sizeof(fds[0]);
 
     void(*func[])(int, int) = {
         forwardInput,
         addListener
     };
     while(1) {
-        if(poll(fds, 2, -1) == -1) {
+        if(poll(fds, numFDs, -1) == -1) {
             die("poll");
         }
-        for(int i=0;i<2;i++) {
-            if(fds[i].revents & POLLIN)
+        for(int i = numFDs - 1; i >= 0; i--){
+            if(fds[i].revents & POLLIN) {
                 func[i](fds[i].fd, baseFD);
+                break;
+            }
             else if(fds[i].revents & (POLLERR|POLLHUP))
                 exit(2);
         }
