@@ -28,14 +28,16 @@ void receive(mqd_t mqd) {
 
 void send(mqd_t mqd, int priority, const char* message) {
     char buffer[MAX_MSG_SIZE];
+    int size;
     if(!message) {
-        int ret = read(STDIN_FILENO, buffer, sizeof(buffer));
-        if (ret == -1)
+        size = read(STDIN_FILENO, buffer, sizeof(buffer));
+        if (size == -1)
             die("failed read");
-        buffer[sizeof(buffer)-1] = 0;
         message = buffer;
+    } else {
+        size = MIN(MAX_MSG_SIZE, strlen(message));
     }
-    if(mq_send(mqd, message, MIN(MAX_MSG_SIZE, strlen(message)), priority) == -1)
+    if(mq_send(mqd, message, size, priority) == -1)
         die("mq_send");
 }
 
