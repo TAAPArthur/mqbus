@@ -25,12 +25,24 @@ void receive(mqd_t mqd) {
         }
     }
 }
+int readAll(int fd, char* buffer, size_t bufferSize) {
+    int size = 0;
+    while(size < bufferSize) {
+        int ret = read(fd, buffer + size, bufferSize - size);
+        if (ret == -1)
+            return -1;
+        if(ret == 0)
+            return size;
+        size += ret;
+    }
+    return size;
+}
 
 void send(mqd_t mqd, int priority, const char* message) {
     char buffer[MAX_MSG_SIZE];
     int size;
     if(!message) {
-        size = read(STDIN_FILENO, buffer, sizeof(buffer));
+        size = readAll(STDIN_FILENO, buffer, sizeof(buffer));
         if (size == -1)
             die("failed read");
         message = buffer;
