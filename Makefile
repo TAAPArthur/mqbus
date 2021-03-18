@@ -1,4 +1,4 @@
-BINS = mqbus mqbus-send mqbus-receive mq mqsend mqreceive
+BINS = mqbus mqbus-send mqbus-receive mq mqsend mqreceive mqunlink
 
 LDFLAGS=-lrt
 
@@ -24,6 +24,9 @@ mqsend: mq
 
 mqreceive: mq
 	ln -s $^ $@
+
+mqunlink: mqunlink.o
+	$(CC) -o $@ $^ $(LDFLAGS)
 
 clean:
 	rm -f $(BINS) *.o

@@ -16,7 +16,8 @@ static inline void die(const char*str) {
 void usage(void);
 
 const char* parseArgs(const char* argv[], int *receiveFlag, int*priority, char* name) {
-    *receiveFlag = strstr(argv[0], "receive")? 1:0;
+    if(receiveFlag)
+        *receiveFlag = strstr(argv[0], "receive")? 1:0;
     for(argv++ ; argv[0] && argv[0][0] == '-' && argv[0][1] != '-'; argv++)
         switch(argv[0][1]) {
             case 'h':
@@ -28,10 +29,12 @@ const char* parseArgs(const char* argv[], int *receiveFlag, int*priority, char* 
                     *priority = atoi(argv[0][2]?argv[0]+2: *(++argv));
                 break;
             case 'r':
-                *receiveFlag = 1;
+                if(receiveFlag)
+                    *receiveFlag = 1;
                 break;
             case 's':
-                *receiveFlag = 0;
+                if(receiveFlag)
+                    *receiveFlag = 0;
                 break;
             default:
                 usage();
