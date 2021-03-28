@@ -126,6 +126,7 @@ void multiSend(int mqd, int baseFD) {
 }
 
 void registerForMultiRead(int mqd, int baseFD) {
+    signal(SIGPIPE, SIG_IGN);
     char pidName[MAX_PIPE_NAME_LEN];
     sprintf(pidName, "%d", getpid());
     if(mkfifoat(baseFD, pidName, 0600)==-1) {
@@ -142,24 +143,21 @@ void registerForMultiRead(int mqd, int baseFD) {
         die("mq_send");
     }
 
-    struct pollfd fds[1] =  {{.fd = fd, .events = POLLIN} };
+    struct pollfd fds[2] =  {{.fd = fd, .events = POLLIN}, {.fd = STDOUT_FILENO} };
 
     char buffer[READ_SIZE];
     while(1) {
-        int ret = poll(fds, 1, -1);
+        int ret = poll(fds, 2, -1);
         if(ret == -1)
             die("poll");
-        if(fds[0].revents & POLLIN) {
-            ret = read(fd, buffer, sizeof(buffer));
-            if(ret == -1) {
-                die("read");
+        if( ret != -1 && (fds[0].revents & POLLIN)) {
+            if((ret = read(fd, buffer, READ_SIZE)) != -1 && write(STDOUT_FILENO, buffer, ret) != -1) {
+                continue;
             }
-            if(write(STDOUT_FILENO, buffer, ret) == -1){
-                die("write");
-            }
-        } else {
-            exit(2);
         }
+        close(fd);
+        unlinkat(baseFD, pidName, 0);
+        exit(2);
     }
 }
 

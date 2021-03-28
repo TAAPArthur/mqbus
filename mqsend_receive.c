@@ -1,4 +1,5 @@
 #include <fcntl.h>
+#include <poll.h>
 #include <mqueue.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,14 +16,21 @@ const struct mq_attr attr = {
 
 void receive(mqd_t mqd) {
     char buffer[MAX_MSG_SIZE];
+
+    struct pollfd fds[2] =  {{.fd = mqd, .events = POLLIN}, {.fd = STDOUT_FILENO} };
     while(1){
-        int ret = mq_receive(mqd,(char*) &buffer, MAX_MSG_SIZE, NULL);
-        if(ret == -1) {
-            die("mq_receive");
+        int ret = poll(fds, 2, -1);
+        if(fds[0].revents & POLLIN) {
+            ret = mq_receive(mqd,(char*) &buffer, MAX_MSG_SIZE, NULL);
+            if(ret == -1) {
+                die("mq_receive");
+            }
+            if(write(STDOUT_FILENO, buffer, ret)==-1) {
+                die("write");
+            }
         }
-        if(write(STDOUT_FILENO, buffer, ret)==-1) {
-            die("write");
-        }
+        else
+            exit(2); // die on STDOUT hangup
     }
 }
 int readAll(int fd, char* buffer, size_t bufferSize) {
