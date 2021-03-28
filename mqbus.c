@@ -24,8 +24,9 @@ int listeners[MAX_LISTENERS];
 char pathNames[MAX_LISTENERS][MAX_PIPE_NAME_LEN];
 int numListeners = 0;
 
-void removeListener(int i, int baseFD) {
-    unlinkat(baseFD, pathNames[i], 0);
+void removeListener(int i, int baseFD, int unlink) {
+    if(unlink)
+        unlinkat(baseFD, pathNames[i], 0);
     close(listeners[i]);
     for(; i < numListeners; i++) {
         listeners[i] = listeners[i + 1];
@@ -38,7 +39,7 @@ void forwardMessage(int baseFD, const char* message, int size) {
     for(int i = numListeners - 1; i >= 0 ; i--) {
         if(write(listeners[i], message, size) == -1) {
             perror("write");
-            removeListener(i, baseFD);
+            removeListener(i, baseFD, 1);
         }
     }
 }
@@ -54,13 +55,12 @@ void forwardInput(int fd, int baseFD) {
 void addListenerByName(int baseFD, char* pipeName) {
     int fd = openat(baseFD, pipeName, O_WRONLY|O_NONBLOCK);
     if(fd == -1) {
-        perror("Failed to open pipe");
         unlinkat(baseFD, pipeName, 0);
         return;
     }
     for(int i = numListeners - 1; i >= 0; i--)
         if(strcmp(pipeName, pathNames[i]) == 0)
-            removeListener(i, baseFD);
+            removeListener(i, baseFD, 0);
     strncpy(pathNames[numListeners], pipeName, MAX_PIPE_NAME_LEN);
     listeners[numListeners++] = fd;
 }
