@@ -7,6 +7,9 @@ all: $(BINS)
 install: $(BINS)
 	install -Dt $(DESTDIR)/usr/bin $^
 
+uninstall:
+	cd $(DESTDIR)/usr/bin/; rm -f $(BINS)
+
 mqbus: mqbus.o
 	$(CC) -o $@ $^ $(LDFLAGS)
 
