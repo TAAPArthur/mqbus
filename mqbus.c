@@ -161,8 +161,8 @@ void registerForMultiRead(int mqd, int baseFD) {
 }
 
 void usage(void) {
-    printf("mqbus: (-s|-r) name [MESSAGE]\n");
-    printf("mqbus-send: name [MESSAGE]\n");
+    printf("mqbus: (-s|-r) name [ -m MASK ] [MESSAGE]\n");
+    printf("mqbus-send: name [ -m MASK ] [MESSAGE]\n");
     printf("mqbus-receive: name\n");
 }
 
@@ -192,9 +192,10 @@ static int createAndOpenDir(const char* relativePath) {
 int main(int argc, const char* argv[]) {
     int receiveFlag;
     char name[255] = {0};
-    const char* message = parseArgs(argv, &receiveFlag, NULL, name);
+    int mask = DEFAULT_CREATION_MASK;
+    const char* message = parseArgs(argv, &receiveFlag, NULL, &mask, name);
     int baseFD = createAndOpenDir(name + 1);
-    mqd_t mqd = mq_open(name, (receiveFlag ? O_WRONLY : O_RDONLY) | O_CREAT, 0722, &attr);
+    mqd_t mqd = mq_open(name, (receiveFlag ? O_WRONLY : O_RDONLY) | O_CREAT, mask, &attr);
     if(mqd == -1) {
         die("mq_open failed to open message queue");
     }

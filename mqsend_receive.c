@@ -62,17 +62,18 @@ void send(mqd_t mqd, int priority, const char* message) {
 }
 
 void usage(void) {
-    printf("mq: (-s|-r) [-p PRIORITY] name [MESSAGE]\n");
-    printf("mqsend: [-p PRIORITY] name [MESSAGE]\n");
-    printf("mqreceive: [-p PRIORITY] name\n");
+    printf("mq: (-s|-r) [-p PRIORITY] [ -m MASK ] name [MESSAGE]\n");
+    printf("mqsend: [-p PRIORITY] name [ -m MASK ] [MESSAGE]\n");
+    printf("mqreceive: [-p PRIORITY] [ -m MASK ] name\n");
 }
 
 int main(int argc, const char* argv[]) {
     int receiveFlag;
     int priority = 0;
     char name[255] = {0};
-    const char* message = parseArgs(argv, &receiveFlag, &priority, name);
-    mqd_t mqd = mq_open(name, (!receiveFlag?O_WRONLY:O_RDONLY)|O_CLOEXEC|O_CREAT, 0722, &attr);
+    int mask = DEFAULT_CREATION_MASK;
+    const char* message = parseArgs(argv, &receiveFlag, &priority, &mask, name);
+    mqd_t mqd = mq_open(name, (!receiveFlag?O_WRONLY:O_RDONLY)|O_CLOEXEC|O_CREAT, mask, &attr);
     if(mqd == -1)
         die("mq_open failed to open message queue");
     if(!receiveFlag)

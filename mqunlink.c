@@ -8,7 +8,7 @@ void usage(void) {
 
 int main(int argc, const char* argv[]) {
     char name[255] = {0};
-    parseArgs(argv, NULL, NULL, name);
+    parseArgs(argv, NULL, NULL, NULL, name);
     int ret = mq_unlink(name);
     if(ret == -1) {
         die("Failed to unlink");

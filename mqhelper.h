@@ -7,6 +7,8 @@
 
 #define MAX_MESSAGES 10
 
+#define DEFAULT_CREATION_MASK 0660
+
 #define MIN(A,B) (A<B?A:B)
 static inline void die(const char*str) {
     perror(str);
@@ -15,7 +17,7 @@ static inline void die(const char*str) {
 
 void usage(void);
 
-const char* parseArgs(const char* argv[], int *receiveFlag, int*priority, char* name) {
+const char* parseArgs(const char* argv[], int *receiveFlag, int*priority, int* mask, char* name) {
     if(receiveFlag)
         *receiveFlag = strstr(argv[0], "receive")? 1:0;
     for(argv++ ; argv[0] && argv[0][0] == '-' && argv[0][1] != '-'; argv++)
@@ -23,6 +25,10 @@ const char* parseArgs(const char* argv[], int *receiveFlag, int*priority, char* 
             case 'h':
                 usage();
                 exit(0);
+                break;
+            case 'm':
+                if(mask)
+                    *mask = atoi(argv[0][2]?argv[0]+2: *(++argv));
                 break;
             case 'p':
                 if(priority)
