@@ -38,7 +38,6 @@ void removeListener(int i, int baseFD, int unlink) {
 void forwardMessage(int baseFD, const char* message, int size) {
     for(int i = numListeners - 1; i >= 0 ; i--) {
         if(write(listeners[i], message, size) == -1) {
-            perror("write");
             removeListener(i, baseFD, 1);
         }
     }
@@ -48,7 +47,7 @@ void forwardInput(int fd, int baseFD) {
     char buffer[READ_SIZE];
     int ret = read(fd, buffer, sizeof(buffer));
     if(ret == -1)
-        die("read");
+        die("Failed to read data to forward");
     forwardMessage(baseFD, buffer, ret);
 }
 
@@ -137,10 +136,10 @@ void registerForMultiRead(int mqd, int baseFD) {
 
     int fd = openat(baseFD, pidName, O_RDWR|O_NONBLOCK);
     if(fd == -1){
-        die("failed to open pipe");
+        die("failed to open named fifo");
     }
     if(mq_send(mqd, pidName, strlen(pidName) + 1, 1) == -1){
-        die("mq_send");
+        die("mq_send failed to send registration message");
     }
 
     struct pollfd fds[2] =  {{.fd = fd, .events = POLLIN}, {.fd = STDOUT_FILENO} };
@@ -197,7 +196,7 @@ int main(int argc, const char* argv[]) {
     int baseFD = createAndOpenDir(name + 1);
     mqd_t mqd = mq_open(name, (receiveFlag ? O_WRONLY : O_RDONLY) | O_CREAT, 0722, &attr);
     if(mqd == -1) {
-        die("mq_open");
+        die("mq_open failed to open message queue");
     }
     if(receiveFlag)
         registerForMultiRead(mqd, baseFD);

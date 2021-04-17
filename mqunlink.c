@@ -11,7 +11,6 @@ int main(int argc, const char* argv[]) {
     parseArgs(argv, NULL, NULL, name);
     int ret = mq_unlink(name);
     if(ret == -1) {
-        perror("Failed to unlink");
-        exit(1);
+        die("Failed to unlink");
     }
 }

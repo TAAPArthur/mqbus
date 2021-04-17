@@ -23,10 +23,10 @@ void receive(mqd_t mqd) {
         if(fds[0].revents & POLLIN) {
             ret = mq_receive(mqd,(char*) &buffer, MAX_MSG_SIZE, NULL);
             if(ret == -1) {
-                die("mq_receive");
+                die("mq_receive failed to retrieve message");
             }
             if(write(STDOUT_FILENO, buffer, ret)==-1) {
-                die("write");
+                die("failed to echo message out to stdout");
             }
         }
         else
@@ -52,13 +52,13 @@ void send(mqd_t mqd, int priority, const char* message) {
     if(!message) {
         size = readAll(STDIN_FILENO, buffer, sizeof(buffer));
         if (size == -1)
-            die("failed read");
+            die("failed to read stdin");
         message = buffer;
     } else {
         size = MIN(MAX_MSG_SIZE, strlen(message));
     }
     if(mq_send(mqd, message, size, priority) == -1)
-        die("mq_send");
+        die("mq_send failed to send message");
 }
 
 void usage(void) {
@@ -74,7 +74,7 @@ int main(int argc, const char* argv[]) {
     const char* message = parseArgs(argv, &receiveFlag, &priority, name);
     mqd_t mqd = mq_open(name, (!receiveFlag?O_WRONLY:O_RDONLY)|O_CLOEXEC|O_CREAT, 0722, &attr);
     if(mqd == -1)
-        die("mqd");
+        die("mq_open failed to open message queue");
     if(!receiveFlag)
         send(mqd, priority, message);
     else
