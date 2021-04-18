@@ -124,11 +124,11 @@ void multiSend(int mqd, int baseFD) {
     }
 }
 
-void registerForMultiRead(int mqd, int baseFD) {
+void registerForMultiRead(int mqd, int baseFD, int mask) {
     signal(SIGPIPE, SIG_IGN);
     char pidName[MAX_PIPE_NAME_LEN];
     sprintf(pidName, "%d", getpid());
-    if(mkfifoat(baseFD, pidName, 0600)==-1) {
+    if(mkfifoat(baseFD, pidName, mask)==-1) {
         if(errno != EEXIST) {
             die("mkfifoat");
         }
@@ -166,7 +166,7 @@ void usage(void) {
     printf("mqbus-receive: name\n");
 }
 
-static int createAndOpenDir(const char* relativePath) {
+static int createAndOpenDir(const char* relativePath, int mask) {
     char* baseDir=getenv("MQBUS_DIR");
     if(!baseDir)
         baseDir="/tmp/mqbus";
@@ -175,7 +175,7 @@ static int createAndOpenDir(const char* relativePath) {
     if(dir == -1) {
         die("open (dir)");
     }
-    if(mkdirat(dir, relativePath, 0744) == -1) {
+    if(mkdirat(dir, relativePath, mask) == -1) {
         if(errno != EEXIST) {
             die("mkdirat");
         }
@@ -194,13 +194,13 @@ int main(int argc, const char* argv[]) {
     char name[255] = {0};
     int mask = DEFAULT_CREATION_MASK;
     const char* message = parseArgs(argv, &receiveFlag, NULL, &mask, name);
-    int baseFD = createAndOpenDir(name + 1);
+    int baseFD = createAndOpenDir(name + 1, mask | 0111);
     mqd_t mqd = mq_open(name, (receiveFlag ? O_WRONLY : O_RDONLY) | O_CREAT, mask, &attr);
     if(mqd == -1) {
         die("mq_open failed to open message queue");
     }
     if(receiveFlag)
-        registerForMultiRead(mqd, baseFD);
+        registerForMultiRead(mqd, baseFD, mask);
     else {
         loadExistingReaders(baseFD);
         if(message)
