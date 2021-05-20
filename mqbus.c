@@ -118,8 +118,9 @@ void multiSend(int mqd, int baseFD) {
                 func[i](fds[i].fd, baseFD);
                 break;
             }
-            else if(fds[i].revents & (POLLERR|POLLHUP))
-                exit(2);
+            else if(fds[i].revents & (POLLERR|POLLHUP)) {
+                exit(0);
+            }
         }
     }
 }
