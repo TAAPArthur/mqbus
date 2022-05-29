@@ -1,6 +1,7 @@
+#include <errno.h>
 #include <fcntl.h>
-#include <poll.h>
 #include <mqueue.h>
+#include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,12 +34,17 @@ void receive(mqd_t mqd) {
             exit(2); // die on STDOUT hangup
     }
 }
+
 int readAll(int fd, char* buffer, size_t bufferSize) {
     int size = 0;
     while(size < bufferSize) {
         int ret = read(fd, buffer + size, bufferSize - size);
-        if (ret == -1)
+        if (ret == -1) {
+            if(errno == EAGAIN) {
+                continue;
+            }
             return -1;
+        }
         if(ret == 0)
             return size;
         size += ret;
@@ -46,19 +52,45 @@ int readAll(int fd, char* buffer, size_t bufferSize) {
     return size;
 }
 
-void send(mqd_t mqd, int priority, const char* message) {
-    char buffer[MAX_MSG_SIZE];
-    int size;
-    if(!message) {
-        size = readAll(STDIN_FILENO, buffer, sizeof(buffer));
-        if (size == -1)
-            die("failed to read stdin");
-        message = buffer;
-    } else {
-        size = MIN(MAX_MSG_SIZE, strlen(message));
-    }
+void _send_helper(mqd_t mqd, int priority, const char* message, int size) {
     if(mq_send(mqd, message, size, priority) == -1)
         die("mq_send failed to send message");
+}
+
+void send(mqd_t mqd, int priority, const char* message) {
+    if(!message) {
+        int size = 0;
+        int index = 0;
+        static char buffer[2][MAX_MSG_SIZE];
+        int read_more;
+        do {
+            read_more = 0;
+            size += readAll(STDIN_FILENO, buffer[index] + size, MAX_MSG_SIZE - size);
+            if (size == -1) {
+                die("failed to read stdin");
+            } else if (size == 0) {
+                break;
+            } else if (size == MAX_MSG_SIZE) {
+                // there might be more data to read
+                read_more = 1;
+                char* ptr = strrchr(buffer[index], '\n');
+                if(ptr) {
+                    size = ptr - buffer[index] + 1;
+                }
+            }
+            _send_helper(mqd, priority, buffer[index], size);
+            if (read_more) {
+                // Copy remaining data in buffer to the alt buffer and account for its size
+                if(MAX_MSG_SIZE != size) {
+                    memcpy(buffer[!index], buffer[index] + size, MAX_MSG_SIZE - size);
+                }
+                size = MAX_MSG_SIZE - size;
+                index = !index;
+            }
+        } while(read_more);
+    } else {
+        _send_helper(mqd, priority, message, MIN(MAX_MSG_SIZE, strlen(message)));
+    }
 }
 
 void usage(void) {
